@@ -1,0 +1,11 @@
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+import fs from 'node:fs/promises';
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const manifest = JSON.parse(await fs.readFile(path.join(root, 'src/manifest.json'), 'utf8'));
+await fs.writeFile(path.join(root, 'manifest.json'), JSON.stringify({ ...manifest, js: `src/${manifest.js}`, css: `src/${manifest.css}` }, null, 2) + '\n');
+const result = spawnSync('python', ['scripts/package.py'], { cwd: root, encoding: 'utf8' });
+process.stdout.write(result.stdout || '');
+process.stderr.write(result.stderr || '');
+process.exitCode = result.status || 0;

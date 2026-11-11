@@ -49,10 +49,17 @@ try {
         else if (round === 2) message = { role: 'assistant', content: '', tool_calls: [tool('c', 'lore_search', { query: '渡口' }), tool('d', 'web_search', { query: '古代 驿传 行程' })] };
         else if (round === 3) message = { role: 'assistant', content: '', tool_calls: [tool('e', 'web_fetch', { url: 'https://example.org/archive' })] };
         else message = { role: 'assistant', content: '她的犹豫可以通过一个很小的动作表现：拿出旧信，又重新收好。先保留未兑现的约定，让重逢拥有分量。\n\n资料仅作背景参考，旅途耗时仍需结合架空设定判断。来源：https://example.org/archive\n\n```text\n请延续渡口场景，以人物的细微动作表现她对旧约的犹豫；先铺垫，不急于和解。\n```\n\n<img src=x onerror="window.injected=true">' };
-        return reply({ choices: [{ message, finish_reason: 'stop' }] });
+        return reply({ choices: [{ message, finish_reason: 'stop' }], usage: { prompt_tokens: 1234 + round * 100, completion_tokens: 230, total_tokens: 1464 + round * 100 } });
     });
     await page.goto(url);
     await page.locator('#sw-launch').click();
+    const initialPanel = await page.locator('.sw-panel').boundingBox();
+    assert.ok(initialPanel.height < 844 * 0.6, '手机默认应是小悬浮窗');
+    assert.equal(await page.locator('.sw-backdrop').isVisible(), false);
+    assert.equal(await page.locator('.sw-panel').getAttribute('data-tt-mobile-surface'), 'free-window');
+    await page.locator('#main-input').click();
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'main-input', '小窗不能遮罩并锁住整个主故事');
+    report.results.push('默认小悬浮窗、无全屏遮罩、公开 IME surface 标记、主故事仍可操作');
     await page.locator('#sw-tab-settings').click();
     await page.locator('#sw-key').fill('dummy-mobile-test-key');
     await page.locator('#sw-background').fill('手机验收身份指令：先理解人物，再讨论情节。');
@@ -60,9 +67,16 @@ try {
     await page.locator('#sw-save').click();
     await page.locator('#sw-settings-result').filter({ hasText: '已保存' }).waitFor();
     await page.locator('#sw-tab-chat').click();
+    const beforeTyping = await page.locator('.sw-meter').getAttribute('data-used-characters');
     await page.locator('#sw-input').fill('请查阅历史并检索史料，讨论渡口重逢的提示词。');
+    await page.waitForFunction(before => Number(document.querySelector('.sw-meter').dataset.usedCharacters) > Number(before), beforeTyping);
     await page.locator('#sw-send').click();
     await page.getByRole('button', { name: '复制提示词块', exact: true }).waitFor();
+    assert.ok((await page.locator('#sw-token-stats').textContent()).includes('1,634 tokens'));
+    await page.locator('#sw-meter-toggle').click();
+    assert.ok((await page.locator('#sw-meter-detail').textContent()).includes('不是累计费用'));
+    await page.locator('#sw-meter-toggle').click();
+    report.results.push('输入时实时上下文字符/预算占比、工具续轮、API 实际 token 报告与解释');
     assert.equal(await page.locator('#sw-root img').count(), 0, '模型 HTML 不应执行');
     assert.equal(await page.evaluate(() => window.injected), undefined);
     await page.getByRole('button', { name: '复制提示词块', exact: true }).click();
@@ -88,13 +102,59 @@ try {
     report.results.push('320 / 390 / 768 像素布局与长设置表单无横向溢出');
     await page.setViewportSize({ width: 390, height: 844 });
     await page.locator('#sw-input').focus();
+    await page.evaluate(() => { window.__hostFrozen = true; });
     await page.setViewportSize({ width: 390, height: 430 });
     await page.waitForTimeout(100);
     const sendRect = await page.locator('#sw-send').boundingBox();
     assert.ok(sendRect.y + sendRect.height <= 430);
+    const editorRect = await page.locator('#sw-input').boundingBox();
+    assert.ok(editorRect.y + editorRect.height <= 430);
     assert.equal(await page.evaluate(() => document.activeElement.id), 'sw-input');
     await page.screenshot({ path: path.join(root, 'artifacts/mobile-keyboard.png') });
-    report.results.push('键盘占位后 430px 内容高度下，输入焦点保留且发送按钮可见');
+    report.results.push('宿主快照停止更新时，仍跟随浏览器 430px 内容视口，输入和发送按钮均可见');
+
+    await page.evaluate(() => { window.__hostFrozen = false; });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator('#sw-input').focus();
+    await page.evaluate(() => {
+        const keyboard = document.createElement('div'); keyboard.id = 'test-ime';
+        keyboard.style.cssText = 'position:fixed;left:0;right:0;bottom:0;height:430px;z-index:2147483647;background:#808891;';
+        document.body.append(keyboard);
+        const panel = document.querySelector('.sw-panel');
+        panel.style.setProperty('--tt-base-viewport-height', '844px');
+        panel.style.setProperty('--tt-ime-bottom', '430px');
+    });
+    await page.waitForFunction(() => document.querySelector('#sw-root').dataset.keyboard === 'known');
+    for (const id of ['sw-input', 'sw-send']) {
+        const r = await page.locator(`#${id}`).boundingBox();
+        assert.ok(r.y + r.height <= 414, `覆盖式键盘不能挡住 ${id}`);
+        assert.equal(await page.evaluate(({ x, y, id }) => document.elementFromPoint(x, y)?.id === id, { x: r.x + r.width / 2, y: r.y + r.height / 2, id }), true);
+    }
+    await page.screenshot({ path: path.join(root, 'artifacts/mobile-android-23-ime.png') });
+    report.results.push('安卓 2.3 覆盖式键盘：窗口不缩小，surface-local 430px inset 下编辑区和发送按钮可达');
+    await page.evaluate(() => {
+        const panel = document.querySelector('.sw-panel'); panel.style.removeProperty('--tt-ime-bottom'); panel.style.removeProperty('--tt-base-viewport-height');
+    });
+    await page.waitForFunction(() => document.querySelector('#sw-root').dataset.keyboard === 'overlay');
+    const fallbackRect = await page.locator('#sw-input').boundingBox();
+    assert.ok(fallbackRect.y + fallbackRect.height < 300, '未知键盘几何时，输入区靠近窗口顶部');
+    assert.equal(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.id, { x: fallbackRect.x + 10, y: fallbackRect.y + 10 }), 'sw-input');
+    await page.evaluate(() => document.querySelector('#test-ime').remove());
+    report.results.push('键盘完全不报告几何时，输入区置于窗口上方避让，输入焦点保留');
+    await page.locator('#sw-input').blur();
+    await page.locator('#sw-size').click();
+    assert.equal(await page.locator('.sw-backdrop').isVisible(), true);
+    assert.equal(await page.locator('.sw-panel').getAttribute('aria-modal'), 'true');
+    await page.locator('#sw-size').click();
+    assert.equal(await page.locator('.sw-backdrop').isVisible(), false);
+    const grip = await page.locator('#sw-grip').boundingBox();
+    const beforeDrag = await page.locator('.sw-panel').boundingBox();
+    await page.mouse.move(grip.x + 25, grip.y + 15); await page.mouse.down();
+    await page.mouse.move(grip.x + 25, grip.y + 95, { steps: 6 }); await page.mouse.up();
+    await page.waitForTimeout(80);
+    const afterDrag = await page.locator('.sw-panel').boundingBox();
+    assert.ok(afterDrag.y > beforeDrag.y + 20, '标题栏应支持拖动');
+    report.results.push('悬浮窗可拖动、手动展开/恢复，展开状态和遮罩一致');
 
     await page.locator('#sw-input').fill('请停止测试'); await page.locator('#sw-send').click();
     await page.locator('#sw-stop').waitFor(); await page.locator('#sw-stop').click();

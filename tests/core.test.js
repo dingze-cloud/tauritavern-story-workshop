@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Repository, Assistant, DEFAULT_SETTINGS, settingsFrom, selectHistory, requestJSON } from '../src/core.js';
+import { Repository, Assistant, DEFAULT_SETTINGS, settingsFrom, selectHistory, requestJSON, contextCharacters } from '../src/core.js';
 
 const response = message => new Response(JSON.stringify({ choices: [{ message, finish_reason: 'stop' }] }), { status: 200 });
 const call = (id, name, args = {}) => ({ id, type: 'function', function: { name, arguments: JSON.stringify(args) } });
@@ -139,4 +139,37 @@ test('网页正文缓存和分页；不重复收费抓取同一页', async () =>
     const first = await assistant.invokeTool('web_fetch', { url: 'https://example.org', length: 4 }, run);
     const second = await assistant.invokeTool('web_fetch', { url: 'https://example.org', offset: 4, length: 4 }, run);
     assert.equal(first.content, '0123'); assert.equal(second.content, '4567'); assert.equal(calls, 1); assert.equal(second.hasMore, true);
+});
+
+test('上下文实时计入固定指令、资料、历史、工具说明和待发送文字', async () => {
+    const { assistant, session } = await setup(async () => response({ content: 'unused' }));
+    const empty = assistant.previewContext(session, settings);
+    const pending = assistant.previewContext(session, settings, '正在输入的新想法');
+    assert.ok(empty.usedCharacters > settings.background.length + settings.notes.length);
+    assert.ok(pending.usedCharacters > empty.usedCharacters);
+    assert.equal(pending.usedCharacters, contextCharacters(pending.messages, pending.tools));
+    assert.equal(pending.percent, Math.round(pending.usedCharacters / settings.contextBudget * 100));
+    session.turns.push({ complete: true, history: [{ role: 'user', content: '旧讨论'.repeat(5000) }] });
+    const limited = assistant.previewContext(session, { ...settings, contextBudget: 12000 });
+    assert.equal(limited.omitted, 1);
+});
+
+test('显示 API 的实际单次输入 token，不把多轮消费累加为上下文；字符统计随工具增长', async () => {
+    const events = [], payloads = []; let round = 0;
+    const { assistant, session, repo } = await setup(async (url, options) => {
+        payloads.push(JSON.parse(options.body)); round++;
+        return new Response(JSON.stringify({ choices: [{ message: round === 1 ? { content: '', tool_calls: [call('metrics', 'story_overview')] } : { content: '回答' } }], usage: { prompt_tokens: round === 1 ? 1000 : 1700, completion_tokens: 120, total_tokens: round === 1 ? 1120 : 1820 } }));
+    }, { overview: async () => ({ content: '查阅得到的资料'.repeat(100) }) });
+    await assistant.send({ session, text: '讨论', settings, apiKey: 'dummy', onEvent: e => events.push(e) });
+    const contexts = events.filter(e => e.type === 'context');
+    assert.equal(contexts.at(-1).usedCharacters, contextCharacters(payloads.at(-1).messages, payloads.at(-1).tools));
+    assert.ok(contexts.at(-1).usedCharacters > contexts[0].usedCharacters);
+    assert.equal(session.lastUsage.promptTokens, 1700); assert.equal(session.lastUsage.completionTokens, 120);
+    assert.equal((await repo.load(session.id)).lastUsage.promptTokens, 1700);
+});
+
+test('未返回 usage 的 API 不捏造 token 数', async () => {
+    const { assistant, session } = await setup(async () => response({ content: '正常回答' }));
+    await assistant.send({ session, text: '讨论', settings, apiKey: 'dummy' });
+    assert.equal(session.lastUsage, undefined);
 });

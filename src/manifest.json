@@ -6,7 +6,7 @@
   "js": "index.js",
   "css": "style.css",
   "author": "Story Workshop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "homePage": "https://github.com/dingze-cloud/tauritavern-story-workshop",
   "description": "独立故事讨论、只读故事资料、DeepSeek 联网研究与提示词草拟。手机优先，手动复制到主故事。"
 }

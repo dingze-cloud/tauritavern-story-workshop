@@ -1,6 +1,6 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>宿主接口模拟 · 故事研讨助手</title><link rel="stylesheet" href="/plugin/style.css"><style>body{margin:0;background:#eae7df;font-family:system-ui;color:#343b3b}main{padding:24px}textarea{width:90%;height:90px}</style></head><body><main><h1>主故事会话</h1><p>以下是隔离验证用的主故事，不会被助手写入。</p><textarea id="main-input">主故事原输入</textarea></main>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>宿主接口模拟 · 故事研讨助手</title><link rel="stylesheet" href="/plugin/style.css"><style>body{margin:0;background:#eae7df;font-family:system-ui;color:#343b3b}main{padding:24px}textarea{width:90%;height:90px}#main-input{position:fixed;bottom:12px;left:12px;width:calc(100% - 24px)}</style></head><body><main><h1>主故事会话</h1><p>以下是隔离验证用的主故事，不会被助手写入。</p><textarea id="main-input">主故事原输入</textarea></main>
 <script>
-window.__currentStory='A';window.__hostReads=[];window.__layoutListeners=[];
+window.__currentStory='A';window.__hostReads=[];window.__layoutListeners=[];window.__hostFrozen=false;
 window.__mainState={preset:'主故事原预设',history:['主故事原消息'],world:'原世界书'};
 const ctx={characterId:0,characters:[{name:'林照',avatar:'lin.png',data:{name:'林照',description:'一位负责运送家书的年轻旅人。她经历过一次未能兑现的约定，如今希望寻回旧友。',personality:'敏锐、克制，遇到旧友时犹豫。',scenario:'架空古代的江河驿路。',extensions:{world:'江河驿路'}}}],chatMetadata:{}};
 window.SillyTavern={getContext:()=>ctx};
@@ -20,6 +20,6 @@ window.__TAURITAVERN__={ready:Promise.resolve(),api:{
  })},
  layout:{snapshot:viewport,subscribe:async fn=>{window.__layoutListeners.push(fn);fn(viewport());return ()=>{window.__layoutListeners=window.__layoutListeners.filter(f=>f!==fn);};}}
 }};
-for(const target of [window,window.visualViewport])target?.addEventListener('resize',()=>window.__layoutListeners.forEach(fn=>fn(viewport())));
+for(const target of [window,window.visualViewport])target?.addEventListener('resize',()=>{if(!window.__hostFrozen)window.__layoutListeners.forEach(fn=>fn(viewport()));});
 window.addEventListener('error',e=>console.error('HARNESS',e.message));
 </script><script type="module" src="/plugin/index.js"></script></body></html>

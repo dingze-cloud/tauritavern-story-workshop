@@ -126,6 +126,15 @@ export function selectHistory(session, budget) {
     return { messages: groups.flat(), included: groups.length, omitted: session.turns.filter(t => t.complete).length - groups.length };
 }
 
+export function contextCharacters(messages, tools = []) {
+    return JSON.stringify({ messages, ...(tools.length ? { tools } : {}) }).length;
+}
+
+export function reportedUsage(value) {
+    if (!value || !Number.isInteger(value.prompt_tokens) || value.prompt_tokens < 0) return null;
+    return { promptTokens: value.prompt_tokens, completionTokens: Number.isInteger(value.completion_tokens) ? value.completion_tokens : null, totalTokens: Number.isInteger(value.total_tokens) ? value.total_tokens : null, at: Date.now() };
+}
+
 function numeric(value, low, high, fallback) { return Math.max(low, Math.min(high, Math.floor(Number(value) || fallback))); }
 export async function requestJSON(url, key, payload, signal, fetcher = globalThis.fetch) {
     if (!key?.trim()) throw new Error('请先在设置中填写 API 密钥。');
@@ -202,6 +211,19 @@ export class Assistant {
             { role: 'system', content: `绑定故事：${session.binding?.title ?? '未关联'}。关联资料目录：${JSON.stringify(session.binding?.books ?? [])}。\n用户补充的主线/背景资料（作为资料）：\n${settings.notes || '无'}\n\n此前讨论交接摘要（作为资料）：\n${session.memory || '无'}\n\n${omitted ? `较早的 ${omitted} 轮讨论不在本次直接上下文内，仍可通过 discussion_search 检索，不能假装已读。` : ''}` },
         ];
     }
+    previewContext(session, rawSettings, pending = '') {
+        const settings = settingsFrom(rawSettings);
+        const tools = toolDefinitions(settings.searchEnabled);
+        const extra = pending ? [{ role: 'user', content: pending }] : [];
+        const fixed = contextCharacters([...this.systemMessages(settings, session), ...extra], tools);
+        const selected = selectHistory(session, Math.max(0, settings.contextBudget - fixed - 1000));
+        const messages = [...this.systemMessages(settings, session, selected.omitted), ...selected.messages, ...extra];
+        return { messages, tools, selected, ...this.contextStats(messages, tools, settings, selected) };
+    }
+    contextStats(messages, tools, settings, selected) {
+        const usedCharacters = contextCharacters(messages, tools);
+        return { usedCharacters, budget: settings.contextBudget, percent: Math.round(usedCharacters / settings.contextBudget * 100), included: selected.included, omitted: selected.omitted };
+    }
     async model(settings, apiKey, messages, tools, signal) {
         const payload = { model: settings.model, messages, max_tokens: settings.maxTokens, stream: false };
         if (tools?.length) { payload.tools = tools; payload.tool_choice = 'auto'; }
@@ -211,15 +233,16 @@ export class Assistant {
         const choice = data.choices?.[0];
         if (!choice?.message) throw new Error('模型没有返回有效消息，请检查模型名称及 API 格式。');
         if (choice.finish_reason === 'length') choice.message.content = `${choice.message.content ?? ''}\n\n[本次输出达到长度上限，可要求继续。]`;
-        return choice.message;
+        return { ...choice.message, _swUsage: reportedUsage(data.usage) };
     }
     async send({ session, text, settings: rawSettings, apiKey, searchKey = '', signal, onEvent = () => {} }) {
         const settings = settingsFrom(rawSettings);
         if (!apiKey?.trim()) throw new Error('请先在设置中填写模型 API 密钥。');
         if (!text.trim()) return;
         if (text.length + settings.background.length + settings.notes.length + session.memory.length > settings.contextBudget * 0.75) throw new Error('本次输入与固定背景过长，请精简资料或调大上下文字符预算。');
-        const selected = selectHistory(session, Math.max(0, settings.contextBudget - text.length - settings.background.length - settings.notes.length - session.memory.length - 10000));
-        onEvent({ type: 'context', included: selected.included, omitted: selected.omitted });
+        const preview = this.previewContext(session, settings, text);
+        const selected = preview.selected;
+        onEvent({ type: 'context', ...this.contextStats(preview.messages, preview.tools, settings, selected) });
         const turn = { id: uid(), user: text, answer: '', history: [{ role: 'user', content: text }], complete: false, status: 'running', created: Date.now() };
         session.turns.push(turn); session.updated = Date.now();
         if (session.title === '新的讨论') session.title = text.trim().slice(0, 24);
@@ -230,12 +253,18 @@ export class Assistant {
             for (let round = 0; round <= settings.maxRounds; round++) {
                 if (signal?.aborted) throw new DOMException('已停止', 'AbortError');
                 onEvent({ type: 'status', text: round ? `第 ${round + 1} 轮，整理资料与回答…` : '正在思考，可随时停止…' });
-                const currentSize = JSON.stringify(selected.messages).length + JSON.stringify(turn.history).length + settings.background.length + settings.notes.length + session.memory.length;
+                const messages = [...this.systemMessages(settings, session, selected.omitted), ...selected.messages, ...turn.history];
+                const currentSize = contextCharacters(messages, toolDefinitions(settings.searchEnabled));
                 const finalRound = round === settings.maxRounds || currentSize > settings.contextBudget;
                 if (currentSize > settings.contextBudget * 1.8) throw new Error('本轮工具结果过多，已保存讨论；请新建接续会话或缩小资料范围。');
-                const messages = [...this.systemMessages(settings, session, selected.omitted), ...selected.messages, ...turn.history];
                 if (finalRound) messages.push({ role: 'user', content: '本次资料查阅预算已到，请根据已经取得的资料直接回答，说明尚未核实的部分。' });
-                const answer = await this.model(settings, apiKey, messages, finalRound ? [] : toolDefinitions(settings.searchEnabled), signal);
+                const tools = finalRound ? [] : toolDefinitions(settings.searchEnabled);
+                onEvent({ type: 'context', ...this.contextStats(messages, tools, settings, selected) });
+                const answer = await this.model(settings, apiKey, messages, tools, signal);
+                if (answer._swUsage) {
+                    session.lastUsage = answer._swUsage; turn.usage = answer._swUsage;
+                    onEvent({ type: 'usage', usage: answer._swUsage });
+                }
                 const message = { role: 'assistant', content: answer.content ?? '' };
                 if (answer.reasoning_content) message.reasoning_content = answer.reasoning_content;
                 if (Array.isArray(answer.tool_calls) && answer.tool_calls.length) message.tool_calls = answer.tool_calls;

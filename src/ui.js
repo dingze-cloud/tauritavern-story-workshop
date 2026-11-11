@@ -1,4 +1,5 @@
 import { Assistant, Repository, DEFAULT_SETTINGS, settingsFrom } from './core.js';
+import { visibleViewport, floatingGeometry } from './viewport.js';
 
 const TOOL_LABELS = { story_overview: '了解故事概览', character_read: '阅读角色完整设定', story_search: '检索故事历史', story_read: '阅读故事原文', lore_search: '查阅世界书目录', lore_read: '阅读世界书', discussion_search: '检索旧讨论', web_search: '搜索网络资料', web_fetch: '读取网页正文' };
 const $ = (root, selector) => root.querySelector(selector);
@@ -33,17 +34,20 @@ export async function mountAssistant(host) {
     let session = repo.index.activeId ? await repo.load(repo.index.activeId) : null;
     let busy = false, controller = null, lastFocus = null, handoffPending = false;
     let viewportUnsubscribe = null;
+    let layoutSnapshot = null, expanded = false, position = null, drag = null, geometryFrame = null, metricFrame = null, runContext = null;
+    let normalHeight = 0, lastWidth = innerWidth, disposed = false;
+    const cleanups = [], focusTimers = [];
     const root = element('div'); root.id = 'sw-root';
     root.innerHTML = `
-      <button type="button" class="sw-fab" id="sw-launch" aria-label="打开故事研讨助手">✦ 故事助手</button>
-      <div class="sw-backdrop" hidden></div>
-      <section class="sw-panel" hidden role="dialog" aria-modal="true" aria-label="故事研讨助手">
+      <button type="button" class="sw-fab" id="sw-launch" data-tt-mobile-surface="free-window" aria-label="打开故事研讨助手">✦ 故事助手</button>
+      <div class="sw-backdrop" data-tt-mobile-surface="backdrop" hidden></div>
+      <section class="sw-panel" data-tt-mobile-surface="free-window" hidden role="dialog" aria-modal="false" aria-label="故事研讨助手">
         <header class="sw-head">
-          <div class="sw-row sw-between"><div><div class="sw-eyebrow">STORY WORKSHOP</div><div class="sw-title">故事研讨助手</div></div><button type="button" id="sw-close" class="sw-icon" aria-label="关闭助手面板">✕</button></div>
-          <div class="sw-binding" id="sw-binding">未关联主故事</div>
+          <div class="sw-row sw-between"><div id="sw-grip" title="按住拖动悬浮窗"><div class="sw-eyebrow">STORY WORKSHOP</div><div class="sw-title">故事研讨助手</div><div class="sw-binding" id="sw-binding">未关联主故事</div></div><div class="sw-row"><button type="button" id="sw-size" class="sw-icon" aria-label="展开窗口" title="展开窗口">⛶</button><button type="button" id="sw-close" class="sw-icon" aria-label="收起助手悬浮窗">—</button></div></div>
           <nav class="sw-tabs" role="tablist" aria-label="助手页面"><button type="button" role="tab" id="sw-tab-chat" aria-selected="true" aria-controls="sw-chat">讨论</button><button type="button" role="tab" id="sw-tab-sessions" aria-selected="false" aria-controls="sw-sessions">会话</button><button type="button" role="tab" id="sw-tab-settings" aria-selected="false" aria-controls="sw-settings">设置</button></nav>
         </header>
         <div class="sw-body" id="sw-chat" role="tabpanel" aria-labelledby="sw-tab-chat">
+          <div class="sw-meter"><button type="button" id="sw-meter-toggle" aria-expanded="false" aria-controls="sw-meter-detail"><span id="sw-meter-label">上下文统计中…</span><span id="sw-token-stats" class="sw-small">Token：尚未收到 API 用量</span></button><progress id="sw-meter-progress" max="100" value="0" aria-label="上下文字符预算使用比例"></progress><p id="sw-meter-detail" class="sw-small" hidden></p></div>
           <div class="sw-scroll" id="sw-messages" aria-label="助手讨论记录"></div>
           <div class="sw-compose"><div id="sw-status" class="sw-status" role="status" aria-live="polite">独立讨论 · 提示词由你手动复制到主故事</div><textarea id="sw-input" rows="2" aria-label="与助手讨论" placeholder="说说你的想法，或者让助手先了解当前故事…"></textarea><div class="sw-row sw-actions"><span class="sw-small" id="sw-context">只读故事资料，不影响主故事编排</span><div class="sw-row"><button type="button" id="sw-stop" hidden>停止</button><button type="button" id="sw-send" class="sw-primary">发送</button></div></div></div>
         </div>
@@ -70,26 +74,111 @@ export async function mountAssistant(host) {
         </form></div>
       </section>`;
     document.body.append(root);
-    const status = text => { $(root, '#sw-status').textContent = text; };
+    const status = text => { $(root, '#sw-status').textContent = text; $(root, '#sw-status').title = text; };
     const result = text => { $(root, '#sw-settings-result').textContent = text; };
     const panel = $(root, '.sw-panel');
     const input = $(root, '#sw-input');
     const messages = $(root, '#sw-messages');
     const guarded = fn => async () => { try { await fn(); } catch (error) { status(error.message); result(error.message); } };
 
-    function updateGeometry(snapshot) {
-        const vv = window.visualViewport;
-        const v = snapshot?.viewport ?? { left: vv?.offsetLeft ?? 0, top: vv?.offsetTop ?? 0, width: vv?.width ?? innerWidth, height: vv?.height ?? innerHeight };
-        root.style.setProperty('--sw-left', `${v.left}px`); root.style.setProperty('--sw-top', `${v.top}px`);
-        root.style.setProperty('--sw-width', `${v.width}px`); root.style.setProperty('--sw-height', `${v.height}px`);
+    function isEditing() { return panel.contains(document.activeElement) && !document.activeElement.readOnly && !document.activeElement.disabled && document.activeElement.matches('textarea,input:not([type="checkbox"]):not([type="button"]):not([type="submit"])'); }
+    function updateGeometry() {
+        if (disposed) return;
+        const vv = window.visualViewport, style = getComputedStyle(panel);
+        const cssNumber = name => parseFloat(style.getPropertyValue(name)) || 0;
+        const v = visibleViewport({ width: innerWidth, height: innerHeight,
+            visual: vv ? { left: vv.offsetLeft, top: vv.offsetTop, width: vv.width, height: vv.height } : null,
+            snapshot: layoutSnapshot, keyboard: navigator.virtualKeyboard?.boundingRect,
+            css: { left: cssNumber('--tt-inset-left'), right: cssNumber('--tt-inset-right'), top: cssNumber('--tt-inset-top'), bottom: cssNumber('--tt-inset-bottom'), baseHeight: cssNumber('--tt-base-viewport-height'), imeBottom: cssNumber('--tt-ime-bottom'), viewportBottomInset: cssNumber('--tt-viewport-bottom-inset') },
+        });
+        if (Math.abs(innerWidth - lastWidth) > 40) { normalHeight = v.height; lastWidth = innerWidth; }
+        const editing = isEditing();
+        if (!editing) normalHeight = Math.max(normalHeight, v.height);
+        const keyboardKnown = v.keyboardOffset > 80 || normalHeight - v.height > 80 || (navigator.virtualKeyboard?.boundingRect?.height ?? 0) > 80;
+        root.dataset.editing = String(editing);
+        root.dataset.keyboard = editing ? (keyboardKnown ? 'known' : 'overlay') : 'none';
+        root.dataset.expanded = String(expanded);
+        const geometry = floatingGeometry(v, { expanded, position, editing });
+        for (const key of ['left', 'top', 'width', 'height']) {
+            const value = `${Math.round(geometry[key])}px`;
+            if (root.style.getPropertyValue(`--sw-${key}`) !== value) root.style.setProperty(`--sw-${key}`, value);
+        }
+        // Settings use their own scroll area; do not scroll the underlying story.
+        const active = document.activeElement, scroll = editing ? active.closest('.sw-scroll') : null;
+        if (scroll) {
+            const field = active.getBoundingClientRect(), area = scroll.getBoundingClientRect();
+            if (field.top < area.top + 8) scroll.scrollTop += field.top - area.top - 8;
+            else if (field.bottom > area.bottom - 58) scroll.scrollTop += Math.min(field.bottom - area.bottom + 58, field.top - area.top - 8);
+        }
     }
-    updateGeometry(host.api.layout?.snapshot?.());
-    if (host.api.layout?.subscribe) viewportUnsubscribe = await host.api.layout.subscribe(updateGeometry);
-    else {
-        window.visualViewport?.addEventListener('resize', () => updateGeometry());
-        window.visualViewport?.addEventListener('scroll', () => updateGeometry());
-        window.addEventListener('resize', () => updateGeometry());
+    function scheduleGeometry() {
+        if (disposed || geometryFrame !== null) return;
+        geometryFrame = requestAnimationFrame(() => { geometryFrame = null; updateGeometry(); });
     }
+    function listen(target, type, fn, options) {
+        target?.addEventListener(type, fn, options); cleanups.push(() => target?.removeEventListener(type, fn, options));
+    }
+    layoutSnapshot = host.api.layout?.snapshot?.() ?? null;
+    updateGeometry();
+    if (host.api.layout?.subscribe) viewportUnsubscribe = await host.api.layout.subscribe(snapshot => { layoutSnapshot = snapshot; scheduleGeometry(); });
+    // Always listen to browser signals, even when a host subscription exists.
+    listen(window.visualViewport, 'resize', scheduleGeometry);
+    listen(window.visualViewport, 'scroll', scheduleGeometry);
+    listen(window, 'resize', scheduleGeometry);
+    listen(window, 'orientationchange', scheduleGeometry);
+    listen(navigator.virtualKeyboard, 'geometrychange', scheduleGeometry);
+    const styleObserver = new MutationObserver(scheduleGeometry);
+    styleObserver.observe(panel, { attributes: true, attributeFilter: ['style', 'class', 'data-tt-ime-active'] });
+    styleObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'class'] });
+    for (const type of ['focusin', 'focusout']) listen(panel, type, () => {
+        scheduleGeometry();
+        for (const timer of focusTimers.splice(0)) clearTimeout(timer);
+        for (const delay of [50, 160, 400]) focusTimers.push(setTimeout(scheduleGeometry, delay));
+    });
+    const grip = $(root, '#sw-grip');
+    listen(grip, 'pointerdown', event => {
+        if (expanded || event.button !== 0) return;
+        event.preventDefault();
+        const r = panel.getBoundingClientRect();
+        drag = { id: event.pointerId, x: event.clientX, y: event.clientY, left: r.left, top: r.top };
+        grip.setPointerCapture(event.pointerId);
+    });
+    listen(grip, 'pointermove', event => {
+        if (!drag || drag.id !== event.pointerId) return;
+        position = { left: drag.left + event.clientX - drag.x, top: drag.top + event.clientY - drag.y }; scheduleGeometry();
+    });
+    for (const type of ['pointerup', 'pointercancel']) listen(grip, type, () => { drag = null; });
+    function updateContext(stats = null) {
+        const current = session ?? { memory: '', turns: [], binding: null };
+        const measure = stats ?? (busy && runContext ? runContext : assistant.previewContext(current, { ...settings, notes: current.notes ?? '' }, input.value));
+        const format = n => Number(n).toLocaleString('zh-CN');
+        $(root, '#sw-meter-label').textContent = `上下文 ${format(measure.usedCharacters)} / ${format(measure.budget)} 字符 · ${measure.percent}%`;
+        $(root, '#sw-meter-progress').value = Math.min(100, measure.percent);
+        $(root, '#sw-meter-progress').setAttribute('aria-valuetext', `${measure.usedCharacters} / ${measure.budget} 字符，${measure.percent}%`);
+        $(root, '.sw-meter').dataset.usedCharacters = String(measure.usedCharacters);
+        $(root, '.sw-meter').dataset.budget = String(measure.budget);
+        $(root, '.sw-meter').dataset.level = measure.percent >= 90 || measure.omitted ? 'warning' : 'normal';
+        const usage = current.lastUsage;
+        $(root, '#sw-token-stats').textContent = usage ? `上次输入 ${format(usage.promptTokens)} tokens${usage.completionTokens !== null ? ` · 输出 ${format(usage.completionTokens)}` : ''}` : '字符统计 ≠ token；尚未收到 API 用量';
+        $(root, '#sw-context').textContent = measure.omitted ? `已省略较早 ${measure.omitted} 轮，可整理接续` : measure.percent >= 80 ? '接近预算，建议整理并接续' : '独立讨论 · 主故事只读';
+        $(root, '#sw-meter-detail').textContent = `当前编排包含完整身份背景、补充资料、交接摘要、保留的历史和工具说明，当前输入也实时计入。保留历史 ${measure.included} 轮，省略 ${measure.omitted} 轮（原记录仍可检索）。字符预算不等于模型 token 窗口；token 数来自上次 API 实际返回，不是累计费用。接近预算或出现省略时，可到“会话”选择“整理并接续”。`;
+    }
+    listen(input, 'input', () => {
+        if (metricFrame !== null) return;
+        metricFrame = requestAnimationFrame(() => { metricFrame = null; updateContext(); });
+    });
+    $(root, '#sw-meter-toggle').addEventListener('click', () => {
+        const detail = $(root, '#sw-meter-detail'); detail.hidden = !detail.hidden;
+        $(root, '#sw-meter-toggle').setAttribute('aria-expanded', String(!detail.hidden));
+    });
+    $(root, '#sw-size').addEventListener('click', () => {
+        expanded = !expanded;
+        panel.setAttribute('aria-modal', String(expanded));
+        $(root, '.sw-backdrop').hidden = !expanded;
+        $(root, '#sw-size').setAttribute('aria-label', expanded ? '恢复小悬浮窗' : '展开窗口');
+        $(root, '#sw-size').title = expanded ? '恢复小悬浮窗' : '展开窗口';
+        scheduleGeometry();
+    });
     function tab(name) {
         for (const candidate of ['chat', 'sessions', 'settings']) {
             $(root, `#sw-${candidate}`).hidden = candidate !== name;
@@ -97,6 +186,7 @@ export async function mountAssistant(host) {
         }
         if (name === 'sessions') renderSessions();
         if (name === 'settings') fillSettings();
+        scheduleGeometry();
     }
     function setBusy(value) {
         busy = value;
@@ -105,6 +195,8 @@ export async function mountAssistant(host) {
         input.readOnly = value;
         if (!value) controller = null;
         renderSessions();
+        updateContext();
+        scheduleGeometry();
     }
     function renderSessions() {
         const list = $(root, '#sw-session-list'); list.replaceChildren();
@@ -144,7 +236,7 @@ export async function mountAssistant(host) {
         }
         return article;
     }
-    function render(scroll = false) {
+    function render(scroll = false, showAnswerStart = false) {
         $(root, '#sw-binding').textContent = session?.binding ? `只读关联：${session.binding.title}` : '未关联故事 · 可在设置中关联当前主故事';
         $(root, '#sw-binding').title = $(root, '#sw-binding').textContent;
         messages.replaceChildren();
@@ -172,7 +264,12 @@ export async function mountAssistant(host) {
             }
             messages.append(sources);
         }
-        if (scroll) requestAnimationFrame(() => { messages.scrollTop = messages.scrollHeight; });
+        if (scroll) requestAnimationFrame(() => {
+            const latest = showAnswerStart ? [...messages.querySelectorAll('.sw-message:not(.sw-user)')].at(-1) : null;
+            if (latest) messages.scrollTop += latest.getBoundingClientRect().top - messages.getBoundingClientRect().top - 8;
+            else messages.scrollTop = messages.scrollHeight;
+        });
+        updateContext();
     }
     async function currentBinding() {
         try { return await host.bindCurrent(); }
@@ -205,6 +302,7 @@ export async function mountAssistant(host) {
         await repo.put('settings', next);
         session.notes = $(root, '#sw-notes').value; await repo.saveSession(session);
         settings = next; apiKey = nextKey; searchKey = nextSearchKey;
+        updateContext();
         result('已保存。助手背景指令从下一次发送起生效；主故事预设保持独立。');
     }
     async function newSession(carry) {
@@ -231,6 +329,7 @@ export async function mountAssistant(host) {
         if (busy || !input.value.trim()) return;
         if (!apiKey) { tab('settings'); result('请填写模型 API 密钥并保存，再开始讨论。'); return; }
         const text = input.value; input.value = '';
+        runContext = null;
         controller = new AbortController(); setBusy(true);
         try {
             await ensureSession();
@@ -238,22 +337,24 @@ export async function mountAssistant(host) {
                 if (event.type === 'status') status(event.text);
                 if (event.type === 'tool') status(`正在${TOOL_LABELS[event.name] ?? event.name}…`);
                 if (event.type === 'toolError') status(`${TOOL_LABELS[event.name] ?? event.name}未成功：${event.text}`);
-                if (event.type === 'context') $(root, '#sw-context').textContent = event.omitted ? `保留最近 ${event.included} 轮 · 更早 ${event.omitted} 轮可检索` : '独立讨论 · 主故事只读';
-                if (['turn', 'answer', 'error'].includes(event.type)) render(true);
+                if (event.type === 'context') { runContext = event; updateContext(event); }
+                if (event.type === 'usage') updateContext(runContext);
+                if (['turn', 'answer', 'error'].includes(event.type)) render(true, event.type === 'answer');
             } });
             status('已完成。选定内容后，复制到主故事输入框再发送。');
         } catch (error) {
             status(controller?.signal.aborted ? '已停止。' : error.message);
             if (session?.turns.at(-1)?.user !== text) input.value = text;
             render();
-        } finally { setBusy(false); }
+        } finally { runContext = null; setBusy(false); updateContext(); }
     }
     async function open() {
         lastFocus = document.activeElement;
         $(root, '#sw-launch').disabled = true;
         try {
-            await ensureSession(); render(); panel.hidden = false; $(root, '.sw-backdrop').hidden = false;
+            await ensureSession(); render(); panel.hidden = false; $(root, '.sw-backdrop').hidden = !expanded;
             $(root, '#sw-launch').hidden = true; $(root, '#sw-close').focus();
+            scheduleGeometry();
         } finally { $(root, '#sw-launch').disabled = false; }
     }
     function close() {
@@ -281,7 +382,7 @@ export async function mountAssistant(host) {
     }));
     panel.addEventListener('keydown', event => {
         if (event.key === 'Escape') { event.preventDefault(); close(); }
-        if (event.key === 'Tab') {
+        if (event.key === 'Tab' && expanded) {
             const focusable = [...panel.querySelectorAll('button, textarea, input, select, a[href], summary')].filter(e => !e.disabled && e.getClientRects().length);
             const first = focusable[0], last = focusable.at(-1);
             if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
@@ -290,5 +391,10 @@ export async function mountAssistant(host) {
     });
     if (session) { for (const turn of session.turns) if (turn.status === 'running') { turn.status = 'stopped'; turn.error = '上次运行被中断，可重新发送。'; } }
     fillSettings(); render();
-    return { root, repo, assistant, open, close, dispose: async () => { controller?.abort(); await viewportUnsubscribe?.(); root.remove(); }, getSession: () => session };
+    return { root, repo, assistant, open, close, dispose: async () => {
+        disposed = true; controller?.abort(); await viewportUnsubscribe?.(); styleObserver.disconnect();
+        for (const cleanup of cleanups) cleanup(); for (const timer of focusTimers) clearTimeout(timer);
+        if (geometryFrame !== null) cancelAnimationFrame(geometryFrame); if (metricFrame !== null) cancelAnimationFrame(metricFrame);
+        root.remove();
+    }, getSession: () => session };
 }

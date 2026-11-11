@@ -2,7 +2,13 @@
 
 用于 TauriTavern 的手机优先第三方前端扩展。独立讨论故事、检索角色与世界书、研究网上资料，并草拟可复制的后续提示词。
 
-版本：1.0.0。它不改主故事预设，不向主故事发消息，也不自动填写主故事输入框。
+版本：1.0.1。它不改主故事预设，不向主故事发消息，也不自动填写主故事输入框。
+
+## 从 1.0.0 更新
+
+在 TauriTavern 的扩展管理中更新“故事研讨助手”，然后彻底退出并重新打开应用；不必卸载或清空数据。原来的会话、身份指令、补充资料和记住密钥的选择继续保留。
+
+1.0.1 针对安卓 TauriTavern 2.3 的键盘覆盖方式补齐浮窗 IME 归属，默认改为可拖动小悬浮窗，并加入上下文用量显示。
 
 ## 安装
 
@@ -18,18 +24,18 @@ https://github.com/dingze-cloud/tauritavern-story-workshop.git
 
 安装完成后启用扩展，必要时重启应用。无需电脑或额外安装工具。普通浏览器中的 DeepSeek 聊天网页不是本插件的运行环境。
 
-### 下载 1.0.0 用户测试版
+### 下载 1.0.1 用户测试版
 
-- [版本页面与更新说明](https://github.com/dingze-cloud/tauritavern-story-workshop/releases/tag/v1.0.0)
-- [插件 ZIP](https://github.com/dingze-cloud/tauritavern-story-workshop/releases/download/v1.0.0/story-workshop-1.0.0.zip)
-- [局域网手机安装工具包](https://github.com/dingze-cloud/tauritavern-story-workshop/releases/download/v1.0.0/story-workshop-install-kit-1.0.0.zip)
-- [源码 ZIP](https://github.com/dingze-cloud/tauritavern-story-workshop/releases/download/v1.0.0/story-workshop-source-1.0.0.zip)
+- [版本页面与更新说明](https://github.com/dingze-cloud/tauritavern-story-workshop/releases/tag/v1.0.1)
+- [插件 ZIP](https://github.com/dingze-cloud/tauritavern-story-workshop/releases/download/v1.0.1/story-workshop-1.0.1.zip)
+- [局域网手机安装工具包](https://github.com/dingze-cloud/tauritavern-story-workshop/releases/download/v1.0.1/story-workshop-install-kit-1.0.1.zip)
+- [源码 ZIP](https://github.com/dingze-cloud/tauritavern-story-workshop/releases/download/v1.0.1/story-workshop-source-1.0.1.zip)
 
 手机优先使用上面的 Git 地址直接安装；ZIP 供手工安装或源码维护使用。
 
 ### 手机与电脑在同一个 Wi-Fi：无需公开仓库
 
-1. 在电脑解压 `story-workshop-install-kit-1.0.0.zip`。电脑需要 Python 3 与 Git，手机不需要这些工具。
+1. 在电脑解压 `story-workshop-install-kit-1.0.1.zip`。电脑需要 Python 3 与 Git，手机不需要这些工具。
 2. Windows 双击 `启动手机安装.cmd`；其他系统在解压目录运行 `python3 serve-install.py --lan`。
 3. 保持窗口打开，复制窗口显示的地址，例如 `http://192.168.1.10:8766/story-workshop.git`。
 4. 手机与电脑连接同一 Wi-Fi，将该地址粘贴到 TauriTavern 的“扩展 → 安装扩展”。如有多张网卡，使用手机能访问的那个地址；可先在手机浏览器打开地址的根路径检查连通。
@@ -39,7 +45,7 @@ https://github.com/dingze-cloud/tauritavern-story-workshop.git
 
 ### 可以访问 TauriTavern 数据目录：手工安装
 
-把 `story-workshop-1.0.0.zip` 解压得到的 `story-workshop` 文件夹，放入当前数据根目录的 `default-user/extensions/`。结果应为 `default-user/extensions/story-workshop/manifest.json`，不要再多套一层同名目录。重启应用并启用。
+把 `story-workshop-1.0.1.zip` 解压得到的 `story-workshop` 文件夹，放入当前数据根目录的 `default-user/extensions/`。结果应为 `default-user/extensions/story-workshop/manifest.json`，不要再多套一层同名目录。重启应用并启用。
 
 部分手机系统或应用版本不能直接访问内部数据目录，此时使用 Git 地址安装；不要往 APK、应用安装目录或主故事文件中粘贴代码。源代码 ZIP 供开发维护使用，不是应用数据备份，不要用“恢复备份”功能导入。
 
@@ -71,15 +77,19 @@ https://github.com/dingze-cloud/tauritavern-story-workshop.git
 - 切换主故事不会把旧助手会话悄悄改绑到新故事。**会话 → 空白新会话** 默认绑定当前主故事。
 - **整理并接续** 会分段整理当前讨论生成摘要，然后新建会话；原讨论保留，可由助手检索。跨故事时会提示改为新建空白会话，不带入原故事资料。
 - 上下文字符预算不是模型 token 数。超出预算后保留最近的完整讨论轮次，界面说明更早轮次被省略；原记录仍保存可检索。可提前使用“整理并接续”。
+- 讨论页顶部实时显示“已用字符 / 字符预算 · 占比”。统计包括身份背景、补充资料、摘要、保留历史、工具说明和当前输入；工具结果进入本轮请求时也会更新。接近预算或已有历史省略时会提醒整理接续。
+- API 返回 usage 后，另行显示“上次输入 N tokens · 输出 M”。这是上一次模型调用的实际用量，不是把历次费用相加。字符数不会冒充 token；接口未返回用量时明确说明。点用量条可查看统计范围及历史保留情况。
 - **停止** 会取消当前网络请求；未完成的工具调用不会在下次对话自动重放。关闭面板则保留正在进行的工作。
 
 ## 手机适配与验证范围
 
-界面使用宿主内容视口适配系统栏、键盘与安全区，手机窄屏全屏显示，较宽屏幕显示独立面板。输入不以单独按回车发送，电脑可使用 Ctrl/⌘+Enter。
+界面默认是小悬浮窗，不用全屏遮罩锁住主故事。按住标题可拖动，点击右上角展开按钮可选择大窗口，再点可恢复小窗；“—”收起为悬浮球。
 
-已完成 Node 自动测试、模拟宿主的浏览器端完整流程、320/390/768 像素宽度与键盘占位验证、真实 Git smart HTTP 浅克隆安装验证。未使用真实付费密钥，也未运行在用户真实手机或其故事资料上；这些由首轮试用验证。
+同时消费宿主、浏览器可见视口和安卓旧版浮窗本地 IME 偏移，不因宿主快照滞后而忽略浏览器变化。输入时自动上移、缩小窗口；完全未报告键盘几何时，将输入区放到窗内上方作为退路。背景与资料编辑使用独立滚动区。输入不以单独按回车发送，电脑可使用 Ctrl/⌘+Enter。
 
-插件依赖较新的官方 `api.chat`、`api.extension.store`，优先使用 `api.layout`。已按 2026-11-11 上游主分支契约核对，不能据此保证所有历史发行版可用；缺少必要接口时会提示更新应用。
+已完成 24 项 Node 自动测试、模拟宿主的浏览器端完整流程、320/390/768 像素宽度验证、宿主快照滞后与安卓 2.3 覆盖式 IME 回归、未知键盘几何退路、拖动/展开、上下文字符及真实 usage 字段显示验证。真实 Git smart HTTP 安装协议已验证。未使用真实付费密钥；1.0.1 尚待用户真实手机试用确认。
+
+插件依赖官方 `api.chat`、`api.extension.store`，优先使用 `api.layout`。布局同时按 v2.3.0 的公开 surface-local IME 契约与较新的内容视口契约核对；缺少必要接口时会提示更新应用。
 
 ## 反馈时提供
 

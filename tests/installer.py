@@ -8,6 +8,7 @@ import threading
 import urllib.request
 
 root = Path(__file__).resolve().parent.parent
+expected_version = json.loads((root / 'src' / 'manifest.json').read_text(encoding='utf-8'))['version']
 spec = importlib.util.spec_from_file_location('installer', root / 'scripts' / 'serve-install.py')
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
@@ -25,7 +26,7 @@ with tempfile.TemporaryDirectory(prefix='story-workshop-install-test-') as tempo
             result = subprocess.run(['git', 'clone', '--depth', '1', url, str(base / name)], capture_output=True, text=True, timeout=60)
             assert result.returncode == 0, result.stderr
             manifest = json.loads((base / name / 'manifest.json').read_text(encoding='utf-8'))
-            assert manifest['version'] == '1.0.0'
+            assert manifest['version'] == expected_version
             assert (base / name / manifest['js']).is_file()
         print('PASS: smart HTTP advertisement, protocol negotiation, shallow clone and plugin manifest/entry (twice).')
         try:

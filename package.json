@@ -1,10 +1,10 @@
 {
   "name": "tavern-story-assistant",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test tests/core.test.js tests/host.test.js",
+    "test": "node --test tests/core.test.js tests/host.test.js tests/viewport.test.js",
     "test:mobile": "node tests/mobile.mjs",
     "build": "node scripts/build.mjs"
   },

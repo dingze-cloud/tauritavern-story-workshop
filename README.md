@@ -2,13 +2,15 @@
 
 用于 TauriTavern 的手机优先第三方前端扩展。独立讨论故事、检索角色与世界书、研究网上资料，并草拟可复制的后续提示词。
 
-版本：1.0.1。它不改主故事预设，不向主故事发消息，也不自动填写主故事输入框。
+版本：1.0.2。它不改主故事预设，不向主故事发消息，也不自动填写主故事输入框。
 
-## 从 1.0.0 更新
+## 从 1.0.0 / 1.0.1 更新
 
 在 TauriTavern 的扩展管理中更新“故事研讨助手”，然后彻底退出并重新打开应用；不必卸载或清空数据。原来的会话、身份指令、补充资料和记住密钥的选择继续保留。
 
-1.0.1 针对安卓 TauriTavern 2.3 的键盘覆盖方式补齐浮窗 IME 归属，默认改为可拖动小悬浮窗，并加入上下文用量显示。
+1.0.2 在 Android 14 模拟器中运行官方未修改的 TauriTavern 2.3.0 APK 和真实 Gboard，复现并修复了键盘收起后仍保留输入焦点导致的窗口/导航不恢复，以及打开过程中反复重排输入区的问题。现在只按实际键盘几何避让，原本不被挡住的小窗保持尺寸位置；收起键盘后即使焦点还在也会恢复。
+
+标题旁会显示 `1.0.2`，可据此确认加载了新版。保留小悬浮窗、拖动/展开、独立会话与上下文计量功能。
 
 ## 安装
 
@@ -24,18 +26,20 @@ https://github.com/dingze-cloud/tauritavern-story-workshop.git
 
 安装完成后启用扩展，必要时重启应用。无需电脑或额外安装工具。普通浏览器中的 DeepSeek 聊天网页不是本插件的运行环境。
 
-### 下载 1.0.1 用户测试版
+### 下载 1.0.2 用户测试版
 
-- [版本页面与更新说明](https://github.com/dingze-cloud/tauritavern-story-workshop/releases/tag/v1.0.1)
-- [插件 ZIP](https://github.com/dingze-cloud/tauritavern-story-workshop/releases/download/v1.0.1/story-workshop-1.0.1.zip)
-- [局域网手机安装工具包](https://github.com/dingze-cloud/tauritavern-story-workshop/releases/download/v1.0.1/story-workshop-install-kit-1.0.1.zip)
-- [源码 ZIP](https://github.com/dingze-cloud/tauritavern-story-workshop/releases/download/v1.0.1/story-workshop-source-1.0.1.zip)
+- [版本页面与更新说明](https://github.com/dingze-cloud/tauritavern-story-workshop/releases/tag/v1.0.2)
+- [插件 ZIP](https://github.com/dingze-cloud/tauritavern-story-workshop/releases/download/v1.0.2/story-workshop-1.0.2.zip)
+- [局域网手机安装工具包](https://github.com/dingze-cloud/tauritavern-story-workshop/releases/download/v1.0.2/story-workshop-install-kit-1.0.2.zip)
+- [源码 ZIP](https://github.com/dingze-cloud/tauritavern-story-workshop/releases/download/v1.0.2/story-workshop-source-1.0.2.zip)
+- [安卓原版应用＋真实九宫格测试录像](https://github.com/dingze-cloud/tauritavern-story-workshop/releases/download/v1.0.2/android23-ime-1.0.2.mp4)
+- [真实36键数字行键盘截图](https://github.com/dingze-cloud/tauritavern-story-workshop/releases/download/v1.0.2/android23-36key-1.0.2.png)
 
 手机优先使用上面的 Git 地址直接安装；ZIP 供手工安装或源码维护使用。
 
 ### 手机与电脑在同一个 Wi-Fi：无需公开仓库
 
-1. 在电脑解压 `story-workshop-install-kit-1.0.1.zip`。电脑需要 Python 3 与 Git，手机不需要这些工具。
+1. 在电脑解压 `story-workshop-install-kit-1.0.2.zip`。电脑需要 Python 3 与 Git，手机不需要这些工具。
 2. Windows 双击 `启动手机安装.cmd`；其他系统在解压目录运行 `python3 serve-install.py --lan`。
 3. 保持窗口打开，复制窗口显示的地址，例如 `http://192.168.1.10:8766/story-workshop.git`。
 4. 手机与电脑连接同一 Wi-Fi，将该地址粘贴到 TauriTavern 的“扩展 → 安装扩展”。如有多张网卡，使用手机能访问的那个地址；可先在手机浏览器打开地址的根路径检查连通。
@@ -45,7 +49,7 @@ https://github.com/dingze-cloud/tauritavern-story-workshop.git
 
 ### 可以访问 TauriTavern 数据目录：手工安装
 
-把 `story-workshop-1.0.1.zip` 解压得到的 `story-workshop` 文件夹，放入当前数据根目录的 `default-user/extensions/`。结果应为 `default-user/extensions/story-workshop/manifest.json`，不要再多套一层同名目录。重启应用并启用。
+把 `story-workshop-1.0.2.zip` 解压得到的 `story-workshop` 文件夹，放入当前数据根目录的 `default-user/extensions/`。结果应为 `default-user/extensions/story-workshop/manifest.json`，不要再多套一层同名目录。重启应用并启用。
 
 部分手机系统或应用版本不能直接访问内部数据目录，此时使用 Git 地址安装；不要往 APK、应用安装目录或主故事文件中粘贴代码。源代码 ZIP 供开发维护使用，不是应用数据备份，不要用“恢复备份”功能导入。
 
@@ -85,9 +89,11 @@ https://github.com/dingze-cloud/tauritavern-story-workshop.git
 
 界面默认是小悬浮窗，不用全屏遮罩锁住主故事。按住标题可拖动，点击右上角展开按钮可选择大窗口，再点可恢复小窗；“—”收起为悬浮球。
 
-同时消费宿主、浏览器可见视口和安卓旧版浮窗本地 IME 偏移，不因宿主快照滞后而忽略浏览器变化。输入时自动上移、缩小窗口；完全未报告键盘几何时，将输入区放到窗内上方作为退路。背景与资料编辑使用独立滚动区。输入不以单独按回车发送，电脑可使用 Ctrl/⌘+Enter。
+同时消费宿主、浏览器可见视口和安卓旧版浮窗本地 IME 偏移，不因宿主快照滞后而忽略浏览器变化。仅在窗口会被实际键盘遮挡时夹取位置/高度，不以输入焦点猜测键盘、不在开合时调换编辑区顺序。键盘关闭后恢复位置、尺寸与导航，即使 Android 保留文本框焦点。背景与资料编辑使用独立滚动区。输入不以单独按回车发送，电脑可使用 Ctrl/⌘+Enter。
 
-已完成 24 项 Node 自动测试、模拟宿主的浏览器端完整流程、320/390/768 像素宽度验证、宿主快照滞后与安卓 2.3 覆盖式 IME 回归、未知键盘几何退路、拖动/展开、上下文字符及真实 usage 字段显示验证。真实 Git smart HTTP 安装协议已验证。未使用真实付费密钥；1.0.1 尚待用户真实手机试用确认。
+本次键盘修复的主要依据是真实 Android 14 运行时、官方 TauriTavern 2.3.0 ARM64 APK 和实际 Gboard，不是浏览器覆盖层。使用系统触摸点击真实26键拼音、36键数字行与九宫格，完成普通浮窗、低位拖动、展开及身份背景编辑六个场景，各两轮输入/候选提交/收起/再次打开；独立读取 Android 系统 IME 窗口物理边界断言未遮挡。旧版 1.0.1 的恢复失败在同环境中复现，新版通过。另有26项逻辑测试、浏览器普通界面回归和真实 Git 安装协议检查。
+
+未使用真实付费密钥或私人故事。这里的安卓运行环境是独立模拟器，不宣称已在用户具体手机和所有输入法上通过。
 
 插件依赖官方 `api.chat`、`api.extension.store`，优先使用 `api.layout`。布局同时按 v2.3.0 的公开 surface-local IME 契约与较新的内容视口契约核对；缺少必要接口时会提示更新应用。
 
@@ -98,5 +104,7 @@ TauriTavern 版本、手机系统、执行了什么操作、屏幕错误原文�
 ## 开发
 
 `npm install` 后，运行 `npm test`、`npm run test:mobile`、`python tests/installer.py`。浏览器测试使用本机 Chrome，其他位置可通过 `CHROME_PATH` 指定。`npm run build` 生成插件包、安装工具包、源码包及 SHA-256 清单。
+
+原生键盘回归为 `npm run test:android`：需要独立的 `storyworkshop_` 前缀 AVD、已安装原版应用和插件、真实 Gboard，以及 `ADB_PATH`、`ANDROID_SERIAL` 配置。脚本通过 ADB 点击实际键盘并原生截屏，通过真实 WebView CDP 只读检查状态，不注入输入文本。具体布局/坐标针对本次1080×2340、DPI440、正常键盘高度测试配置，不是任意手机的通用自动化工具。详细范围见 `tests/README.md`。
 
 宿主：[TauriTavern](https://github.com/Darkatse/TauriTavern)。参考 [插件兼容性](https://github.com/Darkatse/TauriTavern/blob/main/docs/CurrentState/ThirdPartyExtensions.md)、[Chat API](https://github.com/Darkatse/TauriTavern/blob/main/docs/API/Chat.md)、[Extension Store](https://github.com/Darkatse/TauriTavern/blob/main/docs/API/Extension.md)、[Layout API](https://github.com/Darkatse/TauriTavern/blob/main/docs/API/Layout.md) 和 [DeepSeek Search & Fetch](https://api-docs.deepseek.com/guides/search/)。

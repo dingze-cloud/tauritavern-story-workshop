@@ -37,13 +37,13 @@ export async function mountAssistant(host) {
     let layoutSnapshot = null, expanded = false, position = null, drag = null, geometryFrame = null, metricFrame = null, runContext = null;
     let normalHeight = 0, lastWidth = innerWidth, disposed = false;
     const cleanups = [], focusTimers = [];
-    const root = element('div'); root.id = 'sw-root';
+    const root = element('div'); root.id = 'sw-root'; root.dataset.swVersion = '1.0.2';
     root.innerHTML = `
       <button type="button" class="sw-fab" id="sw-launch" data-tt-mobile-surface="free-window" aria-label="打开故事研讨助手">✦ 故事助手</button>
       <div class="sw-backdrop" data-tt-mobile-surface="backdrop" hidden></div>
       <section class="sw-panel" data-tt-mobile-surface="free-window" hidden role="dialog" aria-modal="false" aria-label="故事研讨助手">
         <header class="sw-head">
-          <div class="sw-row sw-between"><div id="sw-grip" title="按住拖动悬浮窗"><div class="sw-eyebrow">STORY WORKSHOP</div><div class="sw-title">故事研讨助手</div><div class="sw-binding" id="sw-binding">未关联主故事</div></div><div class="sw-row"><button type="button" id="sw-size" class="sw-icon" aria-label="展开窗口" title="展开窗口">⛶</button><button type="button" id="sw-close" class="sw-icon" aria-label="收起助手悬浮窗">—</button></div></div>
+          <div class="sw-row sw-between"><div id="sw-grip" title="按住拖动悬浮窗"><div class="sw-eyebrow">STORY WORKSHOP</div><div class="sw-title">故事研讨助手 <span class="sw-version">1.0.2</span></div><div class="sw-binding" id="sw-binding">未关联主故事</div></div><div class="sw-row"><button type="button" id="sw-size" class="sw-icon" aria-label="展开窗口" title="展开窗口">⛶</button><button type="button" id="sw-close" class="sw-icon" aria-label="收起助手悬浮窗">—</button></div></div>
           <nav class="sw-tabs" role="tablist" aria-label="助手页面"><button type="button" role="tab" id="sw-tab-chat" aria-selected="true" aria-controls="sw-chat">讨论</button><button type="button" role="tab" id="sw-tab-sessions" aria-selected="false" aria-controls="sw-sessions">会话</button><button type="button" role="tab" id="sw-tab-settings" aria-selected="false" aria-controls="sw-settings">设置</button></nav>
         </header>
         <div class="sw-body" id="sw-chat" role="tabpanel" aria-labelledby="sw-tab-chat">
@@ -96,9 +96,12 @@ export async function mountAssistant(host) {
         if (!editing) normalHeight = Math.max(normalHeight, v.height);
         const keyboardKnown = v.keyboardOffset > 80 || normalHeight - v.height > 80 || (navigator.virtualKeyboard?.boundingRect?.height ?? 0) > 80;
         root.dataset.editing = String(editing);
-        root.dataset.keyboard = editing ? (keyboardKnown ? 'known' : 'overlay') : 'none';
+        // Focus remains on Android textareas after Back dismisses the IME.
+        // Only measured keyboard/viewport geometry may change the window layout.
+        root.dataset.keyboard = keyboardKnown ? 'shown' : 'hidden';
         root.dataset.expanded = String(expanded);
-        const geometry = floatingGeometry(v, { expanded, position, editing });
+        const geometry = floatingGeometry(v, { expanded, position, referenceHeight: normalHeight || v.height });
+        root.dataset.compactInput = String(keyboardKnown && geometry.height < 340);
         for (const key of ['left', 'top', 'width', 'height']) {
             const value = `${Math.round(geometry[key])}px`;
             if (root.style.getPropertyValue(`--sw-${key}`) !== value) root.style.setProperty(`--sw-${key}`, value);

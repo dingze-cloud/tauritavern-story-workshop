@@ -124,7 +124,7 @@ try {
         panel.style.setProperty('--tt-base-viewport-height', '844px');
         panel.style.setProperty('--tt-ime-bottom', '430px');
     });
-    await page.waitForFunction(() => document.querySelector('#sw-root').dataset.keyboard === 'known');
+    await page.waitForFunction(() => document.querySelector('#sw-root').dataset.keyboard === 'shown');
     for (const id of ['sw-input', 'sw-send']) {
         const r = await page.locator(`#${id}`).boundingBox();
         assert.ok(r.y + r.height <= 414, `覆盖式键盘不能挡住 ${id}`);
@@ -134,13 +134,15 @@ try {
     report.results.push('安卓 2.3 覆盖式键盘：窗口不缩小，surface-local 430px inset 下编辑区和发送按钮可达');
     await page.evaluate(() => {
         const panel = document.querySelector('.sw-panel'); panel.style.removeProperty('--tt-ime-bottom'); panel.style.removeProperty('--tt-base-viewport-height');
+        document.querySelector('#test-ime').remove();
     });
-    await page.waitForFunction(() => document.querySelector('#sw-root').dataset.keyboard === 'overlay');
-    const fallbackRect = await page.locator('#sw-input').boundingBox();
-    assert.ok(fallbackRect.y + fallbackRect.height < 300, '未知键盘几何时，输入区靠近窗口顶部');
-    assert.equal(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.id, { x: fallbackRect.x + 10, y: fallbackRect.y + 10 }), 'sw-input');
-    await page.evaluate(() => document.querySelector('#test-ime').remove());
-    report.results.push('键盘完全不报告几何时，输入区置于窗口上方避让，输入焦点保留');
+    await page.waitForFunction(() => document.querySelector('#sw-root').dataset.keyboard === 'hidden');
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'sw-input');
+    assert.equal(await page.locator('.sw-tabs').isVisible(), true);
+    const restored = await page.locator('.sw-panel').boundingBox();
+    assert.equal(Math.round(restored.height), 430);
+    assert.equal(Math.round(restored.y), 56);
+    report.results.push('键盘关闭但保留焦点时恢复小窗和导航；不再用焦点猜测键盘并重排输入区');
     await page.locator('#sw-input').blur();
     await page.locator('#sw-size').click();
     assert.equal(await page.locator('.sw-backdrop').isVisible(), true);

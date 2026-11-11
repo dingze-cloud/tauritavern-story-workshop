@@ -28,17 +28,17 @@ export function visibleViewport({ width, height, visual, snapshot, css = {}, key
     return { left, top, right, bottom, width: right - left, height: bottom - top, ime, keyboardOffset: Math.max(0, ime - number(snapshot?.safeInsets?.bottom ?? css.bottom)) };
 }
 
-export function floatingGeometry(viewport, { expanded = false, position = null, editing = false } = {}) {
+export function floatingGeometry(viewport, { expanded = false, position = null, referenceHeight = viewport.height } = {}) {
     const margin = 10;
     const availableWidth = Math.max(120, viewport.width - margin * 2);
     const availableHeight = Math.max(120, viewport.height - margin * 2);
     const width = expanded ? Math.min(800, availableWidth) : Math.min(360, availableWidth);
-    const height = expanded ? availableHeight : Math.min(430, Math.max(260, viewport.height * 0.52), availableHeight);
+    const height = expanded ? availableHeight : Math.min(430, Math.max(260, referenceHeight * 0.52), availableHeight);
     const defaultLeft = expanded ? viewport.left + (viewport.width - width) / 2 : viewport.right - width - margin;
-    const defaultTop = editing ? viewport.top + margin : viewport.top + Math.min(56, viewport.height * 0.09);
+    const defaultTop = viewport.top + Math.min(56, referenceHeight * 0.09);
     return {
         left: clamp(position?.left ?? defaultLeft, viewport.left + margin, viewport.right - width - margin),
-        top: clamp(editing ? Math.min(position?.top ?? defaultTop, defaultTop) : (position?.top ?? defaultTop), viewport.top + margin, viewport.bottom - height - margin),
+        top: clamp(position?.top ?? defaultTop, viewport.top + margin, viewport.bottom - height - margin),
         width, height,
     };
 }

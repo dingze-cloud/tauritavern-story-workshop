@@ -1,11 +1,12 @@
 {
   "name": "tavern-story-assistant",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "type": "module",
   "scripts": {
     "test": "node --test tests/core.test.js tests/host.test.js tests/viewport.test.js",
     "test:mobile": "node tests/mobile.mjs",
+    "test:android": "node tests/android-ime.mjs",
     "build": "node scripts/build.mjs"
   },
   "devDependencies": { "playwright": "^1.58.0" }

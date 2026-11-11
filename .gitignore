@@ -6,3 +6,4 @@ artifacts/
 playwright-report/
 test-results/
 __pycache__/
+device-lab/

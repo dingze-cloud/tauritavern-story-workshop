@@ -13,6 +13,7 @@
 #sw-root .sw-row { display:flex; align-items:center; gap:8px; min-width:0; }
 #sw-root .sw-between { justify-content:space-between; }
 #sw-root .sw-title { font-weight:700; font-size:16px; letter-spacing:.02em; }
+#sw-root .sw-version { font-size:10px; color:var(--sw-muted); font-weight:400; letter-spacing:0; }
 #sw-root .sw-eyebrow { color:var(--sw-accent); font-size:11px; letter-spacing:.13em; }
 #sw-root:not([data-expanded="true"]) .sw-head .sw-eyebrow { display:none; }
 #sw-root #sw-grip { touch-action:none; user-select:none; cursor:grab; min-width:0; flex:1; padding:5px 0; }
@@ -68,21 +69,17 @@
 #sw-root .sw-session [aria-current="true"] { border-color:var(--sw-accent); }
 #sw-root .sw-notice { padding:12px; border:1px solid var(--sw-border); border-radius:12px; background:#202f3c; }
 #sw-root .sw-stick { position:sticky; bottom:-17px; padding:10px 0; background:var(--sw-bg); }
-#sw-root[data-editing="true"] .sw-head .sw-eyebrow,
-#sw-root[data-editing="true"] .sw-head .sw-binding,
-#sw-root[data-editing="true"] .sw-head .sw-tabs,
-#sw-root[data-editing="true"] #sw-meter-detail,
-#sw-root[data-editing="true"] .sw-status { display:none; }
-#sw-root[data-editing="true"] .sw-head { padding:2px 8px; }
-#sw-root[data-editing="true"] .sw-compose textarea { min-height:48px; height:56px; max-height:80px; }
-#sw-root[data-editing="true"] .sw-compose { padding:5px 8px; }
-#sw-root[data-editing="true"] .sw-actions { margin-top:5px; }
-#sw-root[data-editing="true"] .sw-form textarea,
-#sw-root[data-editing="true"] #sw-background { min-height:90px; height:110px; max-height:130px; }
-/* Fallback when an IME overlays the page without exposing geometry: keep the
-   editor just below the header, so the bottom keyboard cannot cover it. */
-#sw-root[data-keyboard="overlay"] #sw-chat > .sw-compose { order:1; }
-#sw-root[data-keyboard="overlay"] #sw-chat > .sw-scroll { order:2; }
+#sw-root[data-compact-input="true"] .sw-head .sw-eyebrow,
+#sw-root[data-compact-input="true"] .sw-head .sw-binding,
+#sw-root[data-compact-input="true"] .sw-head .sw-tabs,
+#sw-root[data-compact-input="true"] #sw-meter-detail,
+#sw-root[data-compact-input="true"] .sw-status { display:none; }
+#sw-root[data-compact-input="true"] .sw-head { padding:2px 8px; }
+#sw-root[data-compact-input="true"] .sw-compose textarea { min-height:48px; height:56px; max-height:80px; }
+#sw-root[data-compact-input="true"] .sw-compose { padding:5px 8px; }
+#sw-root[data-compact-input="true"] .sw-actions { margin-top:5px; }
+#sw-root[data-compact-input="true"] .sw-form textarea,
+#sw-root[data-compact-input="true"] #sw-background { min-height:90px; height:110px; max-height:130px; }
 @media (max-height:470px) {
   #sw-root .sw-head { padding:5px 12px; }
   #sw-root .sw-eyebrow, #sw-root .sw-binding { display:none; }

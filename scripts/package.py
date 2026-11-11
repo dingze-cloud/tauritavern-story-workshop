@@ -32,7 +32,9 @@ with zipfile.ZipFile(out / f'story-workshop-source-{version}.zip', 'w', zipfile.
         if (root / name).is_file():
             archive.write(root / name, name)
 summary = []
-for file in sorted(out.glob(f'*{version}.zip')):
+release_files = list(out.glob(f'*{version}.zip'))
+release_files += [p for p in [out / f'android23-ime-{version}.mp4', out / f'android23-36key-{version}.png'] if p.is_file()]
+for file in sorted(release_files):
     summary.append({'file': file.name, 'bytes': file.stat().st_size, 'sha256': hashlib.sha256(file.read_bytes()).hexdigest()})
 (out / 'checksums.json').write_text(json.dumps(summary, indent=2), encoding='utf-8')
 print(json.dumps(summary, ensure_ascii=False, indent=2))

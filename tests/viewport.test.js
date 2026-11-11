@@ -36,3 +36,19 @@ test('VirtualKeyboard 几何可直接约束底部，支持不同键盘高度', (
         assert.equal(viewport.bottom, top);
     }
 });
+test('实际键盘开合：未被遮挡的小窗保持原尺寸位置，不随焦点缩小或重排', () => {
+    const initial = visibleViewport({ width: 393, height: 851 });
+    const opened = visibleViewport({ width: 393, height: 851, css: { baseHeight: 851, imeBottom: 303 } });
+    const before = floatingGeometry(initial, { referenceHeight: 851 });
+    const during = floatingGeometry(opened, { referenceHeight: 851 });
+    const after = floatingGeometry(initial, { referenceHeight: 851 });
+    assert.deepEqual(during, before); assert.deepEqual(after, before);
+});
+test('低位拖动小窗在键盘打开时夹取到可见区域，关闭后恢复用户位置', () => {
+    const initial = visibleViewport({ width: 393, height: 851 });
+    const opened = visibleViewport({ width: 393, height: 851, css: { baseHeight: 851, imeBottom: 303 } });
+    const options = { position: { left: 23, top: 296 }, referenceHeight: 851 };
+    const during = floatingGeometry(opened, options), after = floatingGeometry(initial, options);
+    assert.equal(during.height, 430); assert.ok(during.top + during.height <= opened.bottom);
+    assert.equal(after.top, 296); assert.equal(after.height, 430);
+});
